@@ -261,7 +261,7 @@ async def create_server_task(interaction):
     
     # Format the hostname as root@[Discord_username]
     discord_username = interaction.user.name  # Get the Discord username
-    hostname = f"root@{discord_username}"  # Format the hostname
+    hostname = f"{discord_username}"  # Format the hostname
 
     try:
         container_id = subprocess.check_output([
@@ -301,7 +301,7 @@ async def create_server_task_debian(interaction):
     
     # Format the hostname as root@[Discord_username]
     discord_username = interaction.user.name  # Get the Discord username
-    hostname = f"root@{discord_username}"  # Format the hostname
+    hostname = f"{discord_username}"  # Format the hostname
 
     try:
         container_id = subprocess.check_output([
