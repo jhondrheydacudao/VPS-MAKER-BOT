@@ -37,9 +37,6 @@ echo Made successfully - Building Docker image.
 echo "Building Docker Image"
 sudo docker build -t ubuntu-22.04-with-tmate .
 echo Built successfully
-echo "Downloading main.py from the GitHub repository..."
-wget -O main.py https://raw.githubusercontent.com/katy-the-kat/discord-vps-creator/refs/heads/main/v3ds
-echo Downloaded successfully
 echo "Installing Python packages: discord and docker..."
 pip3 install discord docker
 echo "Please enter your Discord bot token, Make a bot at discord.dev and get the token, You dont need any intents:"
@@ -48,4 +45,4 @@ echo "Updating main.py with the provided Discord token..."
 sed -i "s/TOKEN = ''/TOKEN = '$DISCORD_TOKEN'/" main.py
 echo "Starting the Discord bot..."
 echo "To start the bot in the future, run: python3 main.py"
-python3 main.py
+python3 v2s.py
