@@ -1,50 +1,52 @@
 #!/bin/bash
 
-echo " 
+echo "```                    
+
 ████████╗░█████╗░███╗░░██╗██╗░░░██╗██╗██████╗░
 ╚══██╔══╝██╔══██╗████╗░██║██║░░░██║██║██╔══██╗
 ░░░██║░░░███████║██╔██╗██║╚██╗░██╔╝██║██████╔╝
 ░░░██║░░░██╔══██║██║╚████║░╚████╔╝░██║██╔══██╗
 ░░░██║░░░██║░░██║██║░╚███║░░╚██╔╝░░██║██║░░██║
-░░░╚═╝░░░╚═╝░░╚═╝╚═╝░░╚══╝░░░╚═╝░░░╚═╝╚═╝░░╚═╝  "
-
-
-
-read -p "Are you sure you want to proceed? (y/n): " -n 1 -r
-echo
-
-if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-    echo "Installation aborted."
-    exit 1
-fi
-
-cd ~
+░░░╚═╝░░░╚═╝░░╚═╝╚═╝░░╚══╝░░░╚═╝░░░╚═╝╚═╝░░╚═╝ 
+```"
+echo "Welcome To Automated Installer"
 
 echo "Installing python3-pip and docker."
 sudo apt update
 sudo apt install -y python3-pip docker.io
 echo Installed successfully
 
-echo "Writing Dockerfile..."
-cat <<EOF > Dockerfile
-FROM ubuntu:22.04
+# Clone the repository
+REPO_URL="https://github.com/TS-25/VPS-MAKER-BOT.git"
+echo "Cloning the repository..."
+git clone "$REPO_URL" || { echo "Failed to clone repository."; exit 1; }
 
-RUN apt update
-RUN apt install -y tmate
-EOF
+# Navigate into the cloned directory
+cd VPS-MAKER-BOT || { echo "Repository folder not found."; exit 1; }
 
-echo Made successfully - Building Docker image.
+# Prompt for Bot Token
+read -p "Enter your Bot Token: " BOT_TOKEN
+
+# Update bot.py with the token
+if [[ -f "bot.py" ]]; then
+    sed -i "s/TOKEN = '.*'/TOKEN = '$BOT_TOKEN'/" bot.py
+    echo "Bot token successfully updated in bot.py."
+else
+    echo "Error: bot.py not found. Ensure the file exists in the directory."
+    exit 1
+fi
+
+# Install requirements
 echo "Installing requirements..."
 pip install -r requirements.txt || { echo "Failed to install requirements."; exit 1; }
-echo "Building Docker Image"
-sudo docker build -t ubuntu-22.04-with-tmate .
-echo Built successfully
+
+# Build Docker image
+echo "Building Docker image..."
+docker build -t ubuntu-22.04-with-tmate . || { echo "Docker build failed."; exit 1; }
 echo "Installing Python packages: discord and docker..."
 pip3 install discord docker
-echo "Please enter your Discord bot token, Make a bot at discord.dev and get the token, You dont need any intents:"
-read -r DISCORD_TOKEN
-echo "Updating main.py with the provided Discord token..."
-sed -i "s/TOKEN = ''/TOKEN = '$DISCORD_TOKEN'/" main.py
-echo "Starting the Discord bot..."
-echo "To start the bot in the future, run: python3 main.py"
-python3 v2s.py
+# Run the bot
+echo "Starting the bot..."
+python3 bot.py || { echo "Failed to start the bot."; exit 1; }
+
+echo "Setup Complete! The bot is running."
