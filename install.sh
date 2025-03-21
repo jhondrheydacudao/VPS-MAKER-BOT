@@ -8,9 +8,9 @@ echo "
 ░░░██║░░░██║░░██║██║░╚███║░░╚██╔╝░░██║██║░░██║
 ░░░╚═╝░░░╚═╝░░╚═╝╚═╝░░╚══╝░░░╚═╝░░░╚═╝╚═╝░░╚═╝  "
 
-echo Make your own Free VPS Hosting, Dont Allow Mining
 
-read -p "Are you sure you want to proceed? Agree to not allow mining (y/n): " -n 1 -r
+
+read -p "Are you sure you want to proceed? (y/n): " -n 1 -r
 echo
 
 if [[ ! $REPLY =~ ^[Yy]$ ]]; then
@@ -34,6 +34,8 @@ RUN apt install -y tmate
 EOF
 
 echo Made successfully - Building Docker image.
+echo "Installing requirements..."
+pip install -r requirements.txt || { echo "Failed to install requirements."; exit 1; }
 echo "Building Docker Image"
 sudo docker build -t ubuntu-22.04-with-tmate .
 echo Built successfully
