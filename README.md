@@ -21,9 +21,9 @@
 - Python 3.10 is insatlled on your Linux machine. (You can run `sudo apt install python3 python3-pip` to download Python)
 # Automated Installer 
 
-'''
+```
 bash <(curl -s https://raw.githubusercontent.com/TS-25/VPS-MAKER-BOT/refs/heads/main/install.sh)
-'''
+```
 
 
 
