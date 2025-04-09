@@ -1,52 +1,49 @@
-import random # This is random bullshit
-import logging
+import random
 import subprocess
-import sys
 import os
-import re
-import time
-import concurrent.futures
+import asyncio
 import discord
 from discord.ext import commands, tasks
-import docker
-import asyncio 
+from discord import app_commands
 
-# Load the Discord bot token from an environment variable
-TOKEN = os.getenv('DISCORD_TOKEN')  # Make sure to set this in your environment
+# Configuration
+TOKEN = os.getenv('DISCORD_BOT_TOKEN')  # Use environment variable for security
 RAM_LIMIT = '1g'
 SERVER_LIMIT = 12
-database_file = 'database.txt'
+DATABASE_FILE = 'database.txt'
 
+# Discord Intents
 intents = discord.Intents.default()
 intents.messages = False
 intents.message_content = False
 
+# Initialize bot
 bot = commands.Bot(command_prefix='/', intents=intents)
 
 # Port generation function
-def generate_random_port(): 
+def generate_random_port():
     return random.randint(1025, 65535)
 
 # Database management functions
 def add_to_database(user, container_name, ssh_command):
-    with open(database_file, 'a') as f:
+    with open(DATABASE_FILE, 'a') as f:
         f.write(f"{user}|{container_name}|{ssh_command}\n")
 
 def remove_from_database(container_id):
-    if not os.path.exists(database_file):
+    if not os.path.exists(DATABASE_FILE):
         return
-    with open(database_file, 'r') as f:
+    with open(DATABASE_FILE, 'r') as f:
         lines = f.readlines()
-    with open(database_file, 'w') as f:
+    with open(DATABASE_FILE, 'w') as f:
         for line in lines:
             if container_id not in line:
                 f.write(line)
 
 def get_user_servers(user):
-    if not os.path.exists(database_file):
+    if not os.path.exists(DATABASE_FILE):
         return []
     servers = []
-    with open(database_file, 'r') as f:
+    with open(DATABASE_FILE, 'r') as f:
         for line in f:
             if line.startswith(user):
                 servers.append(line.strip())
@@ -56,9 +53,9 @@ def count_user_servers(user):
     return len(get_user_servers(user))
 
 def get_container_id_from_database(user, container_name):
-    if not os.path.exists(database_file):
+    if not os.path.exists(DATABASE_FILE):
         return None
-    with open(database_file, 'r') as f:
+    with open(DATABASE_FILE, 'r') as f:
         for line in f:
             if line.startswith(user) and container_name in line:
                 return line.split('|')[1]
@@ -74,21 +71,6 @@ async def capture_ssh_session_line(process):
             return output.split("ssh session:")[1].strip()
     return None
 
-async def execute_docker_command(command):
-    try:
-        process = await asyncio.create_subprocess_exec(
-            *command,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
-        )
-        stdout, stderr = await process.communicate()
-        if process.returncode != 0:
-            raise subprocess.CalledProcessError(process.returncode, command, output=stderr)
-        return stdout.decode().strip()
-    except Exception as e:
-        print(f"Error executing command {command}: {e}")
-        return None
-
 @bot.event
 async def on_ready():
     change_status.start()
@@ -98,13 +80,7 @@ async def on_ready():
 @tasks.loop(seconds=5)
 async def change_status():
     try:
-        if os.path.exists(database_file):
-            with open(database_file, 'r') as f:
-                lines = f.readlines()
-                instance_count = len(lines)
-        else:
-            instance_count = 0
-
+        instance_count = len(get_user_servers(str(bot.user)))
         status = f"with {instance_count} Cloud Instances"
         await bot.change_presence(activity=discord.Game(name=status))
     except Exception as e:
@@ -141,7 +117,7 @@ async def start_server(interaction: discord.Interaction, container_name: str):
         return
 
     try:
-        await execute_docker_command(["docker", "start", container_id])
+        subprocess.run(["docker", "start", container_id], check=True)
         exec_cmd = await asyncio.create_subprocess_exec("docker", "exec", container_id, "tmate", "-F",
                                                         stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
         ssh_session_line = await capture_ssh_session_line(exec_cmd)
@@ -162,7 +138,7 @@ async def stop_server(interaction: discord.Interaction, container_name: str):
         return
 
     try:
-        await execute_docker_command(["docker", "stop", container_id])
+        subprocess.run(["docker", "stop", container_id], check=True)
         await interaction.response.send_message(embed=discord.Embed(description="Instance stopped successfully.", color=0x00ff00))
     except subprocess.CalledProcessError as e:
         await interaction.response.send_message(embed=discord.Embed(description=f"Error stopping instance: {e}", color=0xff0000))
@@ -176,7 +152,7 @@ async def restart_server(interaction: discord.Interaction, container_name: str):
         return
 
     try:
-        await execute_docker_command(["docker", "restart", container_id])
+        subprocess.run(["docker", "restart", container_id], check=True)
         exec_cmd = await asyncio.create_subprocess_exec("docker", "exec", container_id, "tmate", "-F",
                                                         stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
         ssh_session_line = await capture_ssh_session_line(exec_cmd)
@@ -371,8 +347,8 @@ async def remove_server(interaction: discord.Interaction, container_name: str):
         return
 
     try:
-        await execute_docker_command(["docker", "stop", container_id])
-        await execute_docker_command(["docker", "rm", container_id])
+        subprocess.run(["docker", "stop", container_id], check=True)
+        subprocess.run(["docker", "rm", container_id], check=True)
         
         remove_from_database(container_id)
         
@@ -396,4 +372,5 @@ async def help_command(interaction: discord.Interaction):
     embed.add_field(name="/port-add", value="Forward a port.", inline=False)
     await interaction.response.send_message(embed=embed)
 
+# Run the bot
 bot.run(TOKEN)
