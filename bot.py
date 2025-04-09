@@ -10,9 +10,10 @@ import discord
 from discord.ext import commands, tasks
 import docker
 import asyncio
-from discord import app_commands
+from discord import app commands 
 
-TOKEN = '' # TOKEN HERE
+# Load the Discord bot token from an environment variable
+TOKEN = os.getenv('DISCORD_TOKEN')  # Make sure to set this in your environment
 RAM_LIMIT = '1g'
 SERVER_LIMIT = 12
 database_file = 'database.txt'
@@ -22,44 +23,25 @@ intents.messages = False
 intents.message_content = False
 
 bot = commands.Bot(command_prefix='/', intents=intents)
-client = docker.from_env()
 
-# port gen forward module < i forgot this shit in the start
+# Port generation function
 def generate_random_port(): 
     return random.randint(1025, 65535)
 
+# Database management functions
 def add_to_database(user, container_name, ssh_command):
     with open(database_file, 'a') as f:
         f.write(f"{user}|{container_name}|{ssh_command}\n")
 
-def remove_from_database(ssh_command):
+def remove_from_database(container_id):
     if not os.path.exists(database_file):
         return
     with open(database_file, 'r') as f:
         lines = f.readlines()
     with open(database_file, 'w') as f:
         for line in lines:
-            if ssh_command not in line:
+            if container_id not in line:
                 f.write(line)
-
-async def capture_ssh_session_line(process):
-    while True:
-        output = await process.stdout.readline()
-        if not output:
-            break
-        output = output.decode('utf-8').strip()
-        if "ssh session:" in output:
-            return output.split("ssh session:")[1].strip()
-    return None
-
-def get_ssh_command_from_database(container_id):
-    if not os.path.exists(database_file):
-        return None
-    with open(database_file, 'r') as f:
-        for line in f:
-            if container_id in line:
-                return line.split('|')[2]
-    return None
 
 def get_user_servers(user):
     if not os.path.exists(database_file):
@@ -74,11 +56,39 @@ def get_user_servers(user):
 def count_user_servers(user):
     return len(get_user_servers(user))
 
-def get_container_id_from_database(user):
-    servers = get_user_servers(user)
-    if servers:
-        return servers[0].split('|')[1]
+def get_container_id_from_database(user, container_name):
+    if not os.path.exists(database_file):
+        return None
+    with open(database_file, 'r') as f:
+        for line in f:
+            if line.startswith(user) and container_name in line:
+                return line.split('|')[1]
     return None
+
+async def capture_ssh_session_line(process):
+    while True:
+        output = await process.stdout.readline()
+        if not output:
+            break
+        output = output.decode('utf-8').strip()
+        if "ssh session:" in output:
+            return output.split("ssh session:")[1].strip()
+    return None
+
+async def execute_docker_command(command):
+    try:
+        process = await asyncio.create_subprocess_exec(
+            *command,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        stdout, stderr = await process.communicate()
+        if process.returncode != 0:
+            raise subprocess.CalledProcessError(process.returncode, command, output=stderr)
+        return stdout.decode().strip()
+    except Exception as e:
+        print(f"Error executing command {command}: {e}")
+        return None
 
 @bot.event
 async def on_ready():
@@ -132,7 +142,7 @@ async def start_server(interaction: discord.Interaction, container_name: str):
         return
 
     try:
-        subprocess.run(["docker", "start", container_id], check=True)
+        await execute_docker_command(["docker", "start", container_id])
         exec_cmd = await asyncio.create_subprocess_exec("docker", "exec", container_id, "tmate", "-F",
                                                         stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
         ssh_session_line = await capture_ssh_session_line(exec_cmd)
@@ -153,7 +163,7 @@ async def stop_server(interaction: discord.Interaction, container_name: str):
         return
 
     try:
-        subprocess.run(["docker", "stop", container_id], check=True)
+        await execute_docker_command(["docker", "stop", container_id])
         await interaction.response.send_message(embed=discord.Embed(description="Instance stopped successfully.", color=0x00ff00))
     except subprocess.CalledProcessError as e:
         await interaction.response.send_message(embed=discord.Embed(description=f"Error stopping instance: {e}", color=0xff0000))
@@ -167,7 +177,7 @@ async def restart_server(interaction: discord.Interaction, container_name: str):
         return
 
     try:
-        subprocess.run(["docker", "restart", container_id], check=True)
+        await execute_docker_command(["docker", "restart", container_id])
         exec_cmd = await asyncio.create_subprocess_exec("docker", "exec", container_id, "tmate", "-F",
                                                         stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
         ssh_session_line = await capture_ssh_session_line(exec_cmd)
@@ -178,36 +188,6 @@ async def restart_server(interaction: discord.Interaction, container_name: str):
             await interaction.response.send_message(embed=discord.Embed(description="Instance restarted, but failed to get SSH session line.", color=0xff0000))
     except subprocess.CalledProcessError as e:
         await interaction.response.send_message(embed=discord.Embed(description=f"Error restarting instance: {e}", color=0xff0000))
-
-def get_container_id_from_database(user, container_name):
-    if not os.path.exists(database_file):
-        return None
-    with open(database_file, 'r') as f:
-        for line in f:
-            if line.startswith(user) and container_name in line:
-                return line.split('|')[1]
-    return None
-
-async def execute_command(command):
-    process = await asyncio.create_subprocess_shell(
-        command,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE
-    )
-    stdout, stderr = await process.communicate()
-    return stdout.decode(), stderr.decode()
-
-PUBLIC_IP = '138.68.79.95'
-
-async def capture_output(process, keyword):
-    while True:
-        output = await process.stdout.readline()
-        if not output:
-            break
-        output = output.decode('utf-8').strip()
-        if keyword in output:
-            return output
-    return None
 
 @bot.tree.command(name="port-add", description="Adds a port forwarding rule")
 @app_commands.describe(container_name="The name of the container", container_port="The port in the container")
@@ -329,24 +309,13 @@ async def create_server_task_debian(interaction):
         await interaction.followup.send(embed=discord.Embed(description="Something went wrong or the Instance is taking longer than expected. If this problem continues, Contact Support.", color=0xff0000))
         subprocess.run(["docker", "kill", container_id])
         subprocess.run(["docker", "rm", container_id])
-        return
-
-    ssh_session_line = await capture_ssh_session_line(exec_cmd)
-    if ssh_session_line:
-        await interaction.user.send(embed=discord.Embed(description=f"### Successfully created Instance\nSSH Session Command: ```{ssh_session_line}```\nOS: Debian", color=0x00ff00))
-        add_to_database(user, container_id, ssh_session_line)
-        await interaction.followup.send(embed=discord.Embed(description="Instance created successfully. Check your DMs for details.", color=0x00ff00))
-    else:
-        await interaction.followup.send(embed=discord.Embed(description="Something went wrong or the Instance is taking longer than expected. If this problem continues, Contact Support.", color=0xff0000))
-        subprocess.run(["docker", "kill", container_id])
-        subprocess.run(["docker", "rm", container_id])
 
 @bot.tree.command(name="deploy-ubuntu", description="Creates a new Instance with Ubuntu 22.04")
 async def deploy_ubuntu(interaction: discord.Interaction):
     await create_server_task(interaction)
 
 @bot.tree.command(name="deploy-debian", description="Creates a new Instance with Debian 12")
-async def deploy_ubuntu(interaction: discord.Interaction):
+async def deploy_debian(interaction: discord.Interaction):
     await create_server_task_debian(interaction)
 
 @bot.tree.command(name="regen-ssh", description="Generates a new SSH session for your instance")
@@ -403,8 +372,8 @@ async def remove_server(interaction: discord.Interaction, container_name: str):
         return
 
     try:
-        subprocess.run(["docker", "stop", container_id], check=True)
-        subprocess.run(["docker", "rm", container_id], check=True)
+        await execute_docker_command(["docker", "stop", container_id])
+        await execute_docker_command(["docker", "rm", container_id])
         
         remove_from_database(container_id)
         
@@ -421,7 +390,7 @@ async def help_command(interaction: discord.Interaction):
     embed.add_field(name="/start <ssh_command/Name>", value="Start a server.", inline=False)
     embed.add_field(name="/stop <ssh_command/Name>", value="Stop a server.", inline=False)
     embed.add_field(name="/regen-ssh <ssh_command/Name>", value="Regenerates SSH cred", inline=False)
-    embed.add_field(name="/restart <ssh_command/Name>", value="Stop a server.", inline=False)
+    embed.add_field(name="/restart <ssh_command/Name>", value="Restarts a server.", inline=False)
     embed.add_field(name="/list", value="List all your servers", inline=False)
     embed.add_field(name="/ping", value="Check the bot's latency.", inline=False)
     embed.add_field(name="/port-http", value="Forward a http website.", inline=False)
