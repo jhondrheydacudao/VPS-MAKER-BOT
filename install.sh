@@ -17,7 +17,7 @@ sudo apt install -y python3-pip docker.io
 echo Installed successfully
 
 # Clone the repository
-REPO_URL="https://github.com/TS-25/VPS-MAKER-BOT.git"
+REPO_URL="https://github.com/jhondrheydacudao/VPS-MAKER-BOT.git"
 echo "Cloning the repository..."
 git clone "$REPO_URL" || { echo "Failed to clone repository."; exit 1; }
 
