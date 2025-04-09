@@ -9,8 +9,7 @@ import concurrent.futures
 import discord
 from discord.ext import commands, tasks
 import docker
-import asyncio
-from discord import app commands 
+import asyncio 
 
 # Load the Discord bot token from an environment variable
 TOKEN = os.getenv('DISCORD_TOKEN')  # Make sure to set this in your environment
