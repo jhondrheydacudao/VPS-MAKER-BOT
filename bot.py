@@ -8,8 +8,8 @@ from discord import app_commands
 
 # Configuration
 TOKEN = os.getenv('DISCORD_BOT_TOKEN')  # Use environment variable for security
-RAM_LIMIT = '1g'
-SERVER_LIMIT = 12
+RAM_LIMIT = '3g'
+SERVER_LIMIT = 1
 DATABASE_FILE = 'database.txt'
 
 # Discord Intents
