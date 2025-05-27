@@ -1,11 +1,19 @@
 FROM debian:12
 
+ENV DEBIAN_FRONTEND=noninteractive
+
 RUN apt-get update && \
-    apt-get install -y tmate && \
-    echo 'root:root' | chpasswd && \
+    apt-get install -y tmate openssh-server openssh-client && \
+    sed -i 's/^#\?\s*PermitRootLogin\s\+.*/PermitRootLogin yes/' /etc/ssh/sshd_config && \
+    mkdir /var/run/sshd && \
     printf '#!/bin/sh\nexit 0' > /usr/sbin/policy-rc.d && \
     apt-get install -y systemd systemd-sysv dbus dbus-user-session && \
     printf "systemctl start systemd-logind" >> /etc/profile
 
-CMD ["bash"]
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+EXPOSE 22
+
+CMD ["/entrypoint.sh"]
 ENTRYPOINT ["/sbin/init"]
